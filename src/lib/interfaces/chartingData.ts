@@ -2,12 +2,13 @@ export type LayerStyles = 'spline' | 'circleMarkers' | 'dotMarkers' | 'triangleM
 export type XAxisTypes = 'bottom' | 'top';
 export type YAxisTypes = 'left' | 'right';
 export type BrushTypes = 'solid' | 'dotted' | 'dashed' | 'dotdashed' | 'dotdotdashed';
+export type LabelOptions = 'inline';
 
 export interface IChart {
     readonly grid: IChartGrid;
     readonly bottomAxis: IChartAxis;
     readonly leftAxis: IChartAxis;
-    readonly rightAxis: IChartAxis;
+    readonly rightAxis?: IChartAxis;
     readonly layers: ReadonlyArray<IChartLayer>;
 }
 export interface IChartGrid {
@@ -20,7 +21,7 @@ export interface IChartAxis {
 }
 export interface IChartLayer {
     readonly label: string;
-    readonly labelOption: string;
+    readonly labelOption?: LabelOptions;
     readonly style: LayerStyles;
     readonly xAxis: XAxisTypes;
     readonly yAxis: YAxisTypes;

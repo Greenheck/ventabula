@@ -55,7 +55,7 @@ function parseAxis(axis: IChartAxis, axisType: 'x' | 'y') {
 }
 
 export class Plotter implements IPlotter {
-    public render(e: HTMLElement, data: IChart, options: IPlotterOptions) {
+    public render(e: HTMLElement, data: IChart, options: IPlotterOptions = {}) {
         const xs: any = {};
         for (let layer of data.layers)
             xs[`${layer.label}`] = `${layer.label}-x`;
@@ -126,7 +126,7 @@ export class Plotter implements IPlotter {
             axis: {
                 x: parseAxis(data.bottomAxis, 'x'),
                 y: parseAxis(data.leftAxis, 'y'),
-                y2: parseAxis(data.rightAxis, 'y')
+                y2: data.rightAxis && parseAxis(data.rightAxis, 'y')
             },
             grid: {
                 x: {
@@ -227,21 +227,23 @@ export class Plotter implements IPlotter {
         //     .call(legendOrdinal);
 
         if (options.legendElement) {
+            const layers = data.layers.filter(l => l.labelOption !== 'inline');
+
             const legendWidth = 300;
             const legendHeight = 200;
 
             const legendX = D3.scaleLinear().rangeRound([0, legendWidth]);
             const legendY = D3.scaleOrdinal<number>()
-                .domain(data.layers.map(l => l.label))
-                .range(data.layers.map((l, i) => 17.5 + (17.5 * i)));
+                .domain(layers.map(l => l.label))
+                .range(layers.map((l, i) => 17.5 + (17.5 * i)));
 
-            // legendX.domain([0, data.layers.length]);
-            // legendY.domain([0, data.layers.length]);
+            // legendX.domain([0, layers.length]);
+            // legendY.domain([0, layers.length]);
 
             const newGroups = D3.select(options.legendElement)
                 .attr('class', 'c3')
             .append('svg').selectAll('g')
-                .data(data.layers.map(l => l.label).slice())
+                .data(layers.map(l => l.label).slice())
             .enter().append('g')
                 .attr('data-id', id => id);
                 // .html(id => id)
