@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "target": "es5",
+        "noImplicitAny": true,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "strictNullChecks": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "types": [ "node", "reflect-metadata", "jquery" ],
+
+        "baseUrl": ".",
+        "paths": {
+            "ventabula": [ "./src" ],
+            "@": [ "./src/lib" ],
+            "@/*": [ "./src/lib/*" ]
+        }
+    },
+    "exclude": [ "node_modules", "dist" ]
+}
