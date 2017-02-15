@@ -17,7 +17,8 @@ function parseAxis(axis: IChartAxis, axisType: 'x' | 'y') {
     const min = Math.min(...ticks);
     const max = Math.max(...ticks);
 
-    const factor = getCommonFactor(max);
+    const minFactor = Math.min(...ticks.filter(t => t > 0));
+    const factor = axisType === 'x' ? getCommonFactor(minFactor) : 1;
 
     const label = factor > 1 ? `${axis.label} x ${factor}` : axis.label;
 
@@ -32,7 +33,7 @@ function parseAxis(axis: IChartAxis, axisType: 'x' | 'y') {
         },
         tick: {
             format: (v: number) => {
-                if (ticks.indexOf(v) < 0)
+                if (!ticks.some(tick => Math.abs(tick - v) < 0.00001))
                     return '';
 
                 if (factor > 1)
@@ -133,8 +134,11 @@ export class Plotter implements IPlotter {
                 },
                 y: {
                     lines: data.leftAxis.ticks.map(tick => ({ value: tick }))
+                },
+                lines: {
+                    front: false
                 }
-            },
+            } as any,
             point: {
                 show: false
             },
@@ -147,6 +151,14 @@ export class Plotter implements IPlotter {
 
             bindto: e,
             onrendered: () => {
+                const zoomRect = D3.select('svg').select('g').select('.c3-zoom-rect');
+                D3.select('svg').select('g').append('line')
+                    .attr('x1', 0)
+                    .attr('y1', 1)
+                    .attr('x2', zoomRect.attr('width'))
+                    .attr('y2', 1)
+                    .style('stroke', 'black');
+
                 for (let dasharrayKey in dasharrays) {
                     const testTargets = D3.selectAll(`.c3-line-${dasharrayKey.replace(new RegExp(' ', 'g'), '-')}`);
                     testTargets.each(function (d, i) {
@@ -221,7 +233,7 @@ export class Plotter implements IPlotter {
             const legendX = D3.scaleLinear().rangeRound([0, legendWidth]);
             const legendY = D3.scaleOrdinal<number>()
                 .domain(data.layers.map(l => l.label))
-                .range(data.layers.map((l, i) => 15 + (15 * i)));
+                .range(data.layers.map((l, i) => 17.5 + (17.5 * i)));
 
             // legendX.domain([0, data.layers.length]);
             // legendY.domain([0, data.layers.length]);
