@@ -21,6 +21,7 @@ export interface IChartAxis {
 }
 export interface IChartLayer {
     readonly label: string;
+    readonly inlineLabel?: string;
     readonly labelOption?: LabelOptions;
     readonly style: LayerStyles;
     readonly xAxis: XAxisTypes;

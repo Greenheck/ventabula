@@ -6,7 +6,7 @@ import { IPlotter, IPlotterOptions, IChart, IChartAxis } from '@/interfaces';
 
 function getCommonFactor(value: number) {
     let bottomAxisFactor: number = 10;
-    while (value / bottomAxisFactor > 1)
+    while (value / bottomAxisFactor >= 1)
         bottomAxisFactor *= 10;
 
     return bottomAxisFactor / 10;
@@ -53,6 +53,8 @@ function parseAxis(axis: IChartAxis, axisType: 'x' | 'y') {
         }
     };
 }
+
+const layerLabelRegex = new RegExp('[ \(\),]', 'g');
 
 export class Plotter implements IPlotter {
     public render(e: HTMLElement, data: IChart, options: IPlotterOptions = {}) {
@@ -159,8 +161,53 @@ export class Plotter implements IPlotter {
                     .attr('y2', 1)
                     .style('stroke', 'black');
 
+                if (!options.hideInlineLabels) {
+                    const prevPoints: Array<SVGPoint> = [];
+                    for (let layer of data.layers) {
+                        if (!layer.inlineLabel)
+                            continue;
+
+                        const targetGroups = D3.select('svg').selectAll(`.c3-lines-${layer.label.replace(layerLabelRegex, '-')}`);
+                        const labelTargets = targetGroups.selectAll(`.c3-line-${layer.label.replace(layerLabelRegex, '-')}`);
+
+                        let startOffset = 20;
+
+                        let startPoint: SVGPoint;
+                        if (prevPoints.length > 0) {
+                            let invalid: boolean;
+                            do {
+                                invalid = false;
+                                startPoint = (labelTargets.node() as SVGPathElement).getPointAtLength(startOffset);
+                                for (let lastPoint of prevPoints) {
+                                    const distance = Math.sqrt(Math.pow(startPoint.x - lastPoint.x, 2) + Math.pow(startPoint.y - lastPoint.y, 2));
+
+                                    if (distance < 30) {
+                                        invalid = true;
+                                        startOffset += 5;
+                                        break;
+                                    }
+                                }
+                            } while (invalid);
+                        }
+                        else {
+                            startPoint = (labelTargets.node() as SVGPathElement).getPointAtLength(startOffset);
+                        }
+
+                        labelTargets.attr('id', `ventabula-line-${layer.label.replace(layerLabelRegex, '-')}`);
+                        targetGroups.append('text')
+                            .append('textPath')
+                                .attr('xlink:href', `#ventabula-line-${layer.label.replace(layerLabelRegex, '-')}`)
+                                .attr('startOffset', startOffset)
+                                .append('tspan')
+                                    .attr('dy', '-2')
+                                    .text(layer.inlineLabel);
+
+                        prevPoints.push(startPoint);
+                    }
+                }
+
                 for (let dasharrayKey in dasharrays) {
-                    const testTargets = D3.selectAll(`.c3-line-${dasharrayKey.replace(new RegExp(' ', 'g'), '-')}`);
+                    const testTargets = D3.selectAll(`.c3-line-${dasharrayKey.replace(layerLabelRegex, '-')}`);
                     testTargets.each(function (d, i) {
                         const line = D3.select(this);
                         line.attr('stroke-dasharray', dasharrays[dasharrayKey]);
@@ -168,7 +215,7 @@ export class Plotter implements IPlotter {
                 }
 
                 for (let pointShapeKey in pointShapes) {
-                    const testTargets = D3.selectAll(`.c3-target-${pointShapeKey.replace(new RegExp(' ', 'g'), '-')}`).selectAll('.c3-circles');
+                    const testTargets = D3.selectAll(`.c3-target-${pointShapeKey.replace(layerLabelRegex, '-')}`).selectAll('.c3-circles');
                     testTargets.each(function (d, i) {
                         const circles = D3.select(this);
                         const innterTestTargets = D3.select(this).selectAll('circle');
