@@ -154,15 +154,34 @@ export class Plotter implements IPlotter {
             bindto: e,
             onrendered: () => {
                 const zoomRect = D3.select('svg').select('g').select('.c3-zoom-rect');
+                const zoomBBox: SVGRect = (<any>zoomRect.node()).getBBox();
+
                 D3.select('svg').select('g').append('line')
                     .attr('x1', 0)
                     .attr('y1', 1)
-                    .attr('x2', zoomRect.attr('width'))
+                    .attr('x2', zoomBBox.width)
                     .attr('y2', 1)
                     .style('stroke', 'black');
 
                 if (!options.hideInlineLabels) {
-                    const prevPoints: Array<SVGPoint> = [];
+                    const prevPoints: Array<{ x: number, y: number }> = [];
+
+                    for (let layer of data.layers.filter(l => pointShapes[l.label])) {
+                        if (pointShapes[layer.label]) {
+                            const testTargets = D3.selectAll(`.c3-target-${layer.label.replace(layerLabelRegex, '-')}`).selectAll('.c3-circles');
+                            testTargets.each(function (d, i) {
+                                const innterTestTargets = D3.select(this).selectAll('circle');
+                                innterTestTargets.each(function (d, i) {
+                                    const circle = D3.select(this);
+                                    const x = parseFloat(circle.attr('cx'));
+                                    const y = parseFloat(circle.attr('cy'));
+
+                                    prevPoints.push({ x, y });
+                                });
+                            });
+                        }
+                    }
+
                     for (let layer of data.layers) {
                         if (!layer.inlineLabel)
                             continue;
@@ -170,40 +189,58 @@ export class Plotter implements IPlotter {
                         const targetGroups = D3.select('svg').selectAll(`.c3-lines-${layer.label.replace(layerLabelRegex, '-')}`);
                         const labelTargets = targetGroups.selectAll(`.c3-line-${layer.label.replace(layerLabelRegex, '-')}`);
 
+                        const pathLength = (labelTargets.node() as SVGPathElement).getTotalLength();
+
                         let startOffset = 20;
 
                         let startPoint: SVGPoint;
-                        if (prevPoints.length > 0) {
-                            let invalid: boolean;
-                            do {
-                                invalid = false;
-                                startPoint = (labelTargets.node() as SVGPathElement).getPointAtLength(startOffset);
+                        let invalid: boolean;
+                        do {
+                            invalid = false;
+                            startPoint = (labelTargets.node() as SVGPathElement).getPointAtLength(startOffset);
+
+                            if (startPoint.x < 20 || startPoint.y < 20 || (zoomBBox.x + zoomBBox.width) - startPoint.x < 5 || (zoomBBox.y + zoomBBox.height) - startPoint.y < 5) {
+                                invalid = true;
+                            }
+                            else {
                                 for (let lastPoint of prevPoints) {
                                     const distance = Math.sqrt(Math.pow(startPoint.x - lastPoint.x, 2) + Math.pow(startPoint.y - lastPoint.y, 2));
 
                                     if (distance < 30) {
                                         invalid = true;
-                                        startOffset += 5;
                                         break;
                                     }
                                 }
-                            } while (invalid);
-                        }
-                        else {
-                            startPoint = (labelTargets.node() as SVGPathElement).getPointAtLength(startOffset);
+                            }
+
+                            if (invalid)
+                                startOffset += 5;
+                        } while (invalid && startOffset < pathLength);
+
+                        if (invalid) {
+                            console.warn(`Cannot draw inline label for layer ${layer.label}, no room`);
+                            continue;
                         }
 
                         labelTargets.attr('id', `ventabula-line-${layer.label.replace(layerLabelRegex, '-')}`);
-                        targetGroups.append('text')
+                        const textPath = targetGroups.append('text')
                             .append('textPath')
                                 .attr('xlink:href', `#ventabula-line-${layer.label.replace(layerLabelRegex, '-')}`)
-                                .attr('startOffset', startOffset)
-                                .append('tspan')
-                                    .attr('dy', '-2')
-                                    .text(layer.inlineLabel);
+                                .attr('startOffset', startOffset);
+                        textPath.append('tspan')
+                            .attr('dy', '-2')
+                            .text(layer.inlineLabel);
+
+                        const textLength = (textPath.node() as SVGTextPathElement).getComputedTextLength();
 
                         prevPoints.push(startPoint);
+                        prevPoints.push((labelTargets.node() as SVGPathElement).getPointAtLength(startOffset + textLength * 0.25));
+                        prevPoints.push((labelTargets.node() as SVGPathElement).getPointAtLength(startOffset + textLength * 0.5));
+                        prevPoints.push((labelTargets.node() as SVGPathElement).getPointAtLength(startOffset + textLength * 0.75));
+                        prevPoints.push((labelTargets.node() as SVGPathElement).getPointAtLength(startOffset + textLength));
                     }
+
+                    console.log(prevPoints)
                 }
 
                 for (let dasharrayKey in dasharrays) {
