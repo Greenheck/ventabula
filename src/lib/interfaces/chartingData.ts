@@ -5,6 +5,7 @@ export type BrushTypes = 'solid' | 'dotted' | 'dashed' | 'dotdashed' | 'dotdotda
 export type LabelOptions = 'inline';
 
 export interface IChart {
+    readonly type: string;
     readonly grid: IChartGrid;
     readonly bottomAxis: IChartAxis;
     readonly leftAxis: IChartAxis;

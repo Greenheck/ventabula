@@ -12,7 +12,7 @@ function getCommonFactor(value: number) {
     return bottomAxisFactor / 10;
 }
 
-function parseAxis(axis: IChartAxis, axisType: 'x' | 'y') {
+function parseNumericAxis(axis: IChartAxis, axisType: 'x' | 'y') {
     const ticks = axis.ticks.slice();
     const min = Math.min(...ticks);
     const max = Math.max(...ticks);
@@ -53,11 +53,26 @@ function parseAxis(axis: IChartAxis, axisType: 'x' | 'y') {
         }
     };
 }
+function parseCategoryAxis(axis: IChartAxis, axisType: 'x' | 'y') {
+    const ticks = axis.ticks.slice();
+
+    return {
+        show: true,
+        type: 'category',
+        label: {
+            text: axis.label,
+            position: axisType === 'x' ? 'outer-center' : 'outer-middle'
+        },
+        categories: ticks.map(tick => tick.toString())
+    };
+}
 
 const layerLabelRegex = new RegExp('[ \(\),]', 'g');
 
 export class Plotter implements IPlotter {
     public render(e: HTMLElement, data: IChart, options: IPlotterOptions = {}) {
+        const xAxisType = data.type === 'sound' ? 'category' : 'numeric';
+
         const xs: any = {};
         for (let layer of data.layers)
             xs[`${layer.label}`] = `${layer.label}-x`;
@@ -90,7 +105,7 @@ export class Plotter implements IPlotter {
 
         const types: any = {};
         for (let layer of data.layers)
-            types[layer.label] = layer.label === 'Max system curve' ? 'area-spline' : 'spline';
+            types[layer.label] = layer.label === 'Max system curve' ? 'area-spline' : (data.type === 'sound' ? 'line' : 'spline');
 
         const pointShapes: any = {};
         for (let layer of data.layers) {
@@ -109,16 +124,19 @@ export class Plotter implements IPlotter {
 
         C3.generate({
             size: {
-                width: options.width || 500,
-                height: options.height || 350,
+                width: options.width,
+                height: options.height,
+            },
+            padding: {
+                right: !data.rightAxis ? 20 : undefined
             },
             interaction: {
                 enabled: false
             },
             data: {
-                xs: xs,
+                xs: xAxisType !== 'category' ? xs : undefined,
                 columns: [
-                    ...data.layers.map(layer => [ `${layer.label}-x`, ...layer.points.map(p => p.x) ]),
+                    ...(xAxisType !== 'category' ? data.layers.map(layer => [ `${layer.label}-x`, ...layer.points.map(p => p.x) ]) : []),
                     ...data.layers.map(layer => [ layer.label, ...layer.points.map(p => p.y) ]),
                 ],
                 axes: axes,
@@ -126,14 +144,14 @@ export class Plotter implements IPlotter {
                 types: types
             },
             axis: {
-                x: parseAxis(data.bottomAxis, 'x'),
-                y: parseAxis(data.leftAxis, 'y'),
-                y2: data.rightAxis && parseAxis(data.rightAxis, 'y')
+                x: xAxisType !== 'category' ? parseNumericAxis(data.bottomAxis, 'x') : parseCategoryAxis(data.bottomAxis, 'x'),
+                y: parseNumericAxis(data.leftAxis, 'y'),
+                y2: data.rightAxis && parseNumericAxis(data.rightAxis, 'y')
             },
             grid: {
-                x: {
+                x: xAxisType !== 'category' ? {
                     lines: data.bottomAxis.ticks.map(tick => ({ value: tick }))
-                },
+                } : undefined,
                 y: {
                     lines: data.leftAxis.ticks.map(tick => ({ value: tick }))
                 },
@@ -153,15 +171,24 @@ export class Plotter implements IPlotter {
 
             bindto: e,
             onrendered: () => {
-                const zoomRect = D3.select('svg').select('g').select('.c3-zoom-rect');
+                const zoomRect = D3.select(e).select('svg').select('g').select('.c3-zoom-rect');
                 const zoomBBox: SVGRect = (<any>zoomRect.node()).getBBox();
 
-                D3.select('svg').select('g').append('line')
+                D3.select(e).select('svg').select('g').append('line')
                     .attr('x1', 0)
                     .attr('y1', 1)
                     .attr('x2', zoomBBox.width)
                     .attr('y2', 1)
                     .style('stroke', 'black');
+
+                if (!data.rightAxis) {
+                    D3.select(e).select('svg').select('g').append('line')
+                        .attr('x1', zoomBBox.width)
+                        .attr('y1', 1)
+                        .attr('x2', zoomBBox.width)
+                        .attr('y2', zoomBBox.height)
+                        .style('stroke', 'black');
+                }
 
                 if (!options.hideInlineLabels) {
                     const prevPoints: Array<{ x: number, y: number }> = [];
@@ -186,7 +213,7 @@ export class Plotter implements IPlotter {
                         if (!layer.inlineLabel)
                             continue;
 
-                        const targetGroups = D3.select('svg').selectAll(`.c3-lines-${layer.label.replace(layerLabelRegex, '-')}`);
+                        const targetGroups = D3.select(e).select('svg').selectAll(`.c3-lines-${layer.label.replace(layerLabelRegex, '-')}`);
                         const labelTargets = targetGroups.selectAll(`.c3-line-${layer.label.replace(layerLabelRegex, '-')}`);
 
                         const pathLength = (labelTargets.node() as SVGPathElement).getTotalLength();
@@ -239,8 +266,6 @@ export class Plotter implements IPlotter {
                         prevPoints.push((labelTargets.node() as SVGPathElement).getPointAtLength(startOffset + textLength * 0.75));
                         prevPoints.push((labelTargets.node() as SVGPathElement).getPointAtLength(startOffset + textLength));
                     }
-
-                    console.log(prevPoints)
                 }
 
                 for (let dasharrayKey in dasharrays) {
